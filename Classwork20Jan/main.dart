@@ -1,8 +1,8 @@
-import 'dart:convert';
-import 'dart:js';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'dart:async';
 
 void main() {
@@ -17,9 +17,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Flutter Demo',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
+      theme: ThemeData(primarySwatch: Colors.blue),
       home: const MyHomePage(title: 'Flutter API'),
     );
   }
@@ -27,6 +25,7 @@ class MyApp extends StatelessWidget {
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({Key? key, required this.title}) : super(key: key);
+
   final String title;
 
   @override
@@ -34,85 +33,75 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final TextEditingController _controller = TextEditingController();
-  Future<Album>? _futureAlbum;
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
       ),
-      body: Container(
-        alignment: Alignment.center,
-        padding: const EdgeInsets.all(8.0),
-        child: (_futureAlbum == null) ? buildColumn() : buildFutureBuilder(),
-      ),
+      body: FutureBuilder<List<Photo>>(
+        future: fetchPhotos(http.Client()),
+        builder: (context,snapshot){
+          if(snapshot.hasError){
+            return const Center(
+            child: Text('An error has occurred'),
+          );
+          }else if(snapshot.hasData){
+           return ListView.builder(
+             itemCount: snapshot.data!.length,
+             itemBuilder:(context,i){
+              return ListTile(
+                title: Text(snapshot.data![i].title,)
+                );
+             });  
+          
+          }else{
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+          
+        }
+      ,),
     );
   }
-
-  Column buildColumn() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: <Widget>[
-        TextField(
-          controller: _controller,
-          decoration: const InputDecoration(hintText: 'Enter Title'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            setState(() {
-              _futureAlbum = createAlbum(_controller.text);
-            });
-          },
-          child: const Text('Create Data'),
-        )
-      ],
-    );
-  }
-
-
-  FutureBuilder<Album> buildFutureBuilder() {
-  return FutureBuilder<Album>(
-    future: _futureAlbum,
-    builder: (context,snapshot) {
-      if(snapshot.hasData) {
-        return Text(snapshot.data!.title);
-      } else if(snapshot.hasError) {
-        return Text('${snapshot.error}');
-      }
-      return const CircularProgressIndicator();
-    },
-  );
-}
-  
 }
 
-Future<Album> createAlbum(String title) async {
-  final response = await http.post(
-    Uri.parse('https://jsonplaceholder.typicode.com/albums'),
-    headers: <String, String>{
-      'Content-Type': 'application/json; charset=UTF-8',
-    },
-    body: jsonEncode(<String, String>{
-      'title': title,
-    }),
-  );
-  if (response.statusCode == 201) {
-    return Album.fromJson(jsonDecode(response.body));
-  } else {
-    throw Exception("Fail to post");
-  }
-}
-
-class Album {
+class Photo{
+  final int albumId;
   final int id;
   final String title;
+  final String url;
+  final String thumbnailUrl;
 
-  Album({required this.id, required this.title});
-  factory Album.fromJson(Map<String, dynamic> json) {
-    return Album(id: json['id'], title: json['title']);
+  const Photo({
+    required this.albumId,
+    required this.id,
+    required this.title,
+    required this.url,
+    required this.thumbnailUrl,
+  });
+
+  factory Photo.fromJson(Map<String,dynamic> json){
+    return Photo(
+      albumId: json['albumId'] as int,
+      id: json['id'] as int,
+      title: json['title'] as String,
+      url: json['url'] as String,
+      thumbnailUrl: json['thumbnailUrl'] as String,
+      );
   }
 }
 
+Future<List<Photo>> fetchPhotos(http.Client client) async{
+  final response=await client.get(Uri.parse('https://jsonplaceholder.typicode.com/photos'));
+  print("response.body=${response.body}");
+  print("parsePhotos=${parsePhotos}");
+  print("compute(parsePhotos,response.body=${compute(parsePhotos,response.body)}");
+  return compute(parsePhotos,response.body);
+}
 
+List<Photo> parsePhotos(String responseBody){
+  final parsed = jsonDecode(responseBody).cast<Map<String,dynamic>>();
+  return parsed.map<Photo>((json)=>Photo.fromJson(json)).toList();
+}
